@@ -3,6 +3,7 @@ import psycopg2
 import os
 import openai
 from dotenv import load_dotenv
+import uvicorn
 
 load_dotenv()
 
@@ -15,6 +16,10 @@ app = FastAPI()
 
 conn = psycopg2.connect(DATABASE_URL)
 cur = conn.cursor()
+
+@app.get("/")
+def home():
+    return {"message": "Hello from Railway!"}
 
 @app.get("/api/roadmap")
 def get_roadmap(role: str):
@@ -47,3 +52,6 @@ def vet_resource(url):
         messages=[{"role": "user", "content": prompt}]
     )
     return "✅" if "yes" in response["choices"][0]["message"]["content"].lower() else "❌"
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
