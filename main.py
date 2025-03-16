@@ -1,15 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import psycopg2
 import os
-import openai
 from dotenv import load_dotenv
 import uvicorn
+from pydantic import BaseModel
+from google.generativeai import configure, GenerativeModel
 
 load_dotenv()
-
 DATABASE_URL = os.getenv("DATABASE_URL")
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
+configure(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_model = GenerativeModel("gemini-1.5-pro")
 
 app = FastAPI()
 
@@ -51,14 +51,22 @@ def get_roadmap(role: str):
         "resources": resources
     }
 
+class VettingRequest(BaseModel):
+    url: str
+
 @app.post("/api/vet")
-def vet_resource(url):
-    prompt = f"Is {url} a reliable learning resource? Check if it's from Coursera, edX, MIT, etc."
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return "✅" if "yes" in response["choices"][0]["message"]["content"].lower() else "❌"
+def vet_resource(request: VettingRequest):
+    prompt = f"Is {request.url} a reliable learning resource? Check if it's from Coursera, edX, MIT, etc. Answer only with 'yes' or 'no'."
+    
+    try:
+        response = gemini_model.generate_content(prompt)
+        result = response.text.strip().lower()
+        vetted = "✅" if result and "yes" in result else "❌"
+
+        return {"url": request.url, "vetted": vetted}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
