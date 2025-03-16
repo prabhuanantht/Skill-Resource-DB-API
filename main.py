@@ -30,21 +30,28 @@ def get_roadmap(role: str):
     
     role_id = role_id[0]
 
+    cur.execute("SELECT name FROM skills WHERE role_id = %s", (role_id,))
+    skills = [row[0] for row in cur.fetchall()]
+
     cur.execute("""
-        SELECT s.name, r.title, r.url, r.type, r.vetted
+        SELECT s.name AS skill, r.title, r.url, r.type, r.vetted
         FROM skills s
         JOIN resources r ON s.id = r.skill_id
         WHERE s.role_id = %s
     """, (role_id,))
     
-    data = {}
-    for skill, title, url, type_, vetted in cur.fetchall():
-        if skill not in data:
-            data[skill] = []
-        data[skill].append({"title": title, "url": url, "type": type_, "vetted": vetted})
+    resources = [
+        {"skill": skill, "title": title, "url": url, "type": type_, "vetted": vetted}
+        for skill, title, url, type_, vetted in cur.fetchall()
+    ]
 
-    return {"role": role, "skills": data}
+    return {
+        "role": role,
+        "skills": skills,
+        "resources": resources
+    }
 
+@app.post("/api/vet")
 def vet_resource(url):
     prompt = f"Is {url} a reliable learning resource? Check if it's from Coursera, edX, MIT, etc."
     response = openai.ChatCompletion.create(
